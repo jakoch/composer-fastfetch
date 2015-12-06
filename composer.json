@@ -1,0 +1,37 @@
+{
+    "name": "jakoch/composer-fastfetch",
+    "description": "Fastfetch - A Composer plugin downloading packages into the cache.",
+    "keywords": ["composer", "download", "plugin", "package", "parallel", "async", "aria2", "curl", "wget"],
+    "homepage": "https://github.com/jakoch/composer-fastfetch/",
+    "type": "composer-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jens A. Koch",
+            "email": "jakoch@web.de",
+            "homepage": "http://jakoch.de/"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/jakoch/composer-fastfetch/issues"
+    },
+    "require": {
+        "composer-plugin-api":  "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": 	    "^4.5",
+        "composer/composer":    "^1.0"
+    },
+    "autoload": {
+        "psr-4": { "Composer\\Plugin\\FastFetch\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Composer\\Plugin\\FastFetch\\Test\\": "tests/" }
+    },
+    "extra": {
+        "class": "Composer\\Plugin\\FastFetch\\FastFetch"
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}

@@ -1,0 +1,11 @@
+language: php
+
+php: [7.0] #, 5.6, 5.5]
+
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y aria2
+
+script:
+  - cd tests/example-usage
+  - composer install --no-dev --prefer-dist --optimize-autoloader --profile -vvv
