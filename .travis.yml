@@ -5,6 +5,7 @@ php: [7.0] #, 5.6, 5.5]
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y aria2
+  - aria2c -v
 
 script:
   - cd tests/example-usage

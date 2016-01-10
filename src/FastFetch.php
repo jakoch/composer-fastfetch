@@ -37,6 +37,8 @@ class FastFetch implements PluginInterface, EventSubscriberInterface
     // @var IOInterface
     protected $io;
 
+    protected $tool;
+
     protected $downloader;
 
     /**
@@ -45,9 +47,12 @@ class FastFetch implements PluginInterface, EventSubscriberInterface
     public function activate(\Composer\Composer $composer,\Composer\IO\IOInterface $io)
     {
         $this->composer = $composer;
-        $this->io = $io;
+        $this->io       = $io;
 
-        $this->downloader = new Downloader($composer, $io);
+        $factory = new DownloaderFactory($composer, $io);
+        $this->tool = $factory->getDownloader();
+
+        $this->downloader = new Downloader($composer, $io, $this->tool);
 
         /**
          * @todo if we could get all distUrls from Composer at this position,
@@ -55,6 +60,12 @@ class FastFetch implements PluginInterface, EventSubscriberInterface
          * But $operations comes directly from the Solver and vanishes in the event system.
          * https://github.com/composer/composer/blob/9e9c1917e1ed9f3f78b195a785aee3c6dc3cb883/src/Composer/Installer.php#L523
          */
+        // exit early, if no downloader was found
+        /*if ($tool === false) {
+            $this->io->write('Skipping downloading, because Composer couldn\'t find a suitable download tool.');
+            $this->io->write('You might install one of the following tools: aria2'); //, wget, curl.
+            return;
+        }*/
         //$this->downloader->downloadPackages( $composer->fromWhichObject()->getOperations() );
     }
 
@@ -66,20 +77,28 @@ class FastFetch implements PluginInterface, EventSubscriberInterface
         return [
             'post-package-install' => 'onPostPackageInstall',
             'post-package-update' => 'onPostPackageUpdate',
-         ];
+          ];
     }
 
     public function onPostPackageInstall(\Composer\Installer\PackageEvent $event)
     {
-        $installedPackage = $event->getOperation()->getPackage();
-
-        if('jakoch/composer-fastfetch' === $installedPackage->getPrettyName()) {
-            $this->downloader->downloadPackages( $event->getOperations() );
-        }
+        $this->downloadPackages($event);
     }
 
     public function onPostPackageUpdate(\Composer\Installer\PackageEvent $event)
     {
+        $this->downloadPackages($event);
+    }
+
+    public function downloadPackages(\Composer\Installer\PackageEvent $event)
+    {
+        // exit early, if no downloader was found
+        if ($this->tool === false) {
+            $this->io->write('Skipping downloading, because Composer couldn\'t find a suitable download tool.');
+            $this->io->write('You might install one of the following tools: aria2'); //, wget, curl.
+            return;
+        }
+
         $installedPackage = $event->getOperation()->getPackage();
 
         if('jakoch/composer-fastfetch' === $installedPackage->getPrettyName()) {

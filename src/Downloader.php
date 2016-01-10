@@ -17,6 +17,7 @@ use Composer\DependencyResolver\Operation\InstallOperation;
 use Composer\DependencyResolver\Operation\UpdateOperation;
 use Composer\IO\IOInterface;
 use Composer\Util\ProcessExecutor;
+use Composer\Package;
 //use Composer\Util\GitHub; // helper util to raise rate limit?
 
 /**
@@ -48,12 +49,12 @@ class Downloader
      */
     public $binDir = '';
 
-    public function __construct(\Composer\Composer $composer, \Composer\IO\IOInterface $io)
+    public function __construct(\Composer\Composer $composer, \Composer\IO\IOInterface $io, $downloader)
     {
         $this->composer   = $composer;
         $this->io         = $io;
         $this->config     = $composer->getConfig();
-        $this->downloader = $this->findDownloader();
+        $this->downloader = $downloader;
 
         // exit early, if no downloader was found
         if (!is_object($this->downloader)) {
@@ -96,12 +97,12 @@ class Downloader
         $counter = 0;
 
         foreach ($operations as $idx => $op) {
-            if ($op instanceof InstallOperation) {
+            if ($op instanceof InstallOperation) {          // package to install
                 $package = $op->getPackage();
-            } elseif ($op instanceof UpdateOperation) {
+            } elseif ($op instanceof UpdateOperation) {     // package to update
                 $package = $op->getTargetPackage();
             } else {
-                continue;
+                continue;                                   // skip all other packages
             }
 
             // do not download this plugin again
@@ -114,25 +115,29 @@ class Downloader
                 $this->io->write('[<info>' . $package->getName() . '</info>]'); // (<comment>' . VersionParser::formatVersion($package) . '</comment>)');
             }
 
-            // bah! we don't have an URL?
+            // Lets grab the URLs of all packages (not-cached-yet)
+            $url = $package->getDistUrl();
+
+            // uhm, mutiple URLs? are that real mirror URLs or local mirrors?
+            //$url = array_shift($urls);
+
+            // moan, when there is no download URL
             if (!$package->getDistUrl()) {
                 if ($this->io->isVerbose()) {
                     $this->io->write(' - The package was not added to the download list, because it did not provide any distUrls.');
                 }
+                continue;
             }
 
             /**
              * The next section is similar to Composer/Downloader/FileDownloader->doDownload()
-             * Lets grab the URLs of all packages (not-cached-yet).
+             *
+             * Build cache infos: sum, key, (cached) file, full cache target path
              */
-
-            // build cache infos: sum, key, (cached) file, full cache target path
-            $url           = $package->getDistUrl();
-            //$url         = array_shift($urls); // uhm, mutiple URLs? are that real mirror URLs or local mirrors?
-            $checksum      = $package->getDistSha1Checksum();
-            $fileName      = $package->getTargetDir() . '/' . pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_BASENAME);
-            $cacheFile     = $this->getCacheKey($package);
-            $cacheFolder   = $this->cacheFilesDir . '/' . $cacheFile;
+            $checksum    = $package->getDistSha1Checksum();
+            $fileName    = $package->getTargetDir() . '/' . pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_BASENAME);
+            $cacheFile   = $this->getCacheKey($package);
+            $cacheFolder = $this->cacheFilesDir . '/' . $cacheFile;
 
             /*var_dump(
                 $package->getDistUrl(),
@@ -143,7 +148,7 @@ class Downloader
             ); exit;*/
 
             /**
-             * add distURL to download list only, if file is "not cached, yet" or "cache is invalidated"
+             * add distURL to download list, but only, if file is "not cached, yet" or "cache is invalidated".
              *
              * Note: to improve the Composer API, get rid of this long condition check, in favor of a short function,
              * e.g. $package->isCached() or $cache->hasPackage($package).
@@ -180,7 +185,7 @@ class Downloader
         $this->io->write('<info>Downloading ' . $counter . ' packages.</info>');
         $this->io->write('<info>Working... this may take a while.</info>');
         $this->executeDownloader();
-        $this->io->write('<info>FastFetch: Ok. All done.</info>' . PHP_EOL);
+        $this->io->write('<info>FastFetch: Done.</info>' . PHP_EOL);
 
         unlink($this->downloadsFile);
     }
@@ -198,11 +203,11 @@ class Downloader
             }
         };
 
-        // use command from downloader, escape, then execute
+        $this->process = new ProcessExecutor($this->io);
+        // use command from downloader, insert into command string, then execute
         $command = $this->downloader->getCommand();
         $command = ($this->binDir !== '') ? $this->binDir . $command : $command;
-        $escapedCmd = sprintf($command, ProcessExecutor::escape($this->downloadsFile));
-        $this->process = new ProcessExecutor($this->io);
+        $escapedCmd = sprintf($command, $this->downloadsFile);
 
         if (!0 === $this->process->execute($escapedCmd, $callableOutputHandler)) {
             throw new \RuntimeException('Failed to execute ' . $command . "\n\n" . $this->process->getErrorOutput());
@@ -212,19 +217,23 @@ class Downloader
     /**
      * Get the cache file path (without cache-files-dir prefix).
      *
-     * @param PackageInterface $package
+     * @param PackageInterface $p
      * @return type
      */
-    public function getCacheKey($package)
+    public function getCacheKey(\Package\PackageInterface $p)
     {
-        if (preg_match('{^[a-f0-9]{40}$}', $package->getDistReference())) {
-            return $package->getName() . '/' . $package->getDistReference() . '.' . $package->getDistType();
+        $distRef = $p->getDistReference();
+
+        if (preg_match('{^[a-f0-9]{40}$}', $distRef)) {
+            return $p->getName() . '/' . $distRef . '.' . $p->getDistType();
         }
 
-        //return $package->getName() . '/' . $package->getVersion() . '-' . $package->getDistReference() . '.' . $package->getDistType();
+        // Composer builds the key like this, but it doesn't work:
+        //return $p->getName().'/'.$p->getVersion().'-'.$distRef.'.'.$p->getDistType();
 
-        // fix from https://github.com/krispypen/composer/commit/d8fa9ab57efdac94cd7135d96c2523932ac30f8b
-        return $package->getName().'/'.$package->getVersion().'-'.$package->getDistReference().'-'.$package->getDistSha1Checksum().'.'.$package->getDistType();
+        // we need to apply the SHA1 fix from
+        // https://github.com/krispypen/composer/commit/d8fa9ab57efdac94cd7135d96c2523932ac30f8b
+        return $p->getName().'/'.$p->getVersion().'-'.$distRef.'-'.$p->getDistSha1Checksum().'.'.$p->getDistType();
     }
 
     /**
@@ -244,82 +253,6 @@ class Downloader
                 }
             }
         }
-    }
-
-    /**
-     * Searches the environment for known downloaders
-     * and returns the (cli-command wrapper) object for the downloader.
-     *
-     * The "return early style" defines the downloader priority:
-     *
-     * 1. config->get('extra/composer-fastfetch/download-tool')
-     * 2. aria2c
-     * 3. parallel + curl
-     * 4. curl
-     * 5. parallel + wget
-     * 6. wget
-     *
-     * @return string Classname of the downloader.
-     */
-    public function findDownloader()
-    {
-/*
-        // override download tool detection, by using the manually defined tool from config
-        if ($this->config->get('download-tool')) {
-            $name = $this->config->get('download-tool');
-            $className = 'Downloader\\' . $downloaderClassName;
-            return new $className($this->composer, $this->io);
-        }
-*/
-        if ($this->io->isVerbose()) {
-            $this->io->write('Searching environment for known download tools...');
-        }
-
-        if ($this->cmdExists('aria2c')) {
-            return new Downloader\Aria($this->composer, $this->io);
-        }
-/*
-        if ($this->cmdExists('curl')) {
-            if ($this->cmdExists('parallel')) {
-                return new Downloader\ParallelCurl($this->composer, $this->io);
-            }
-            return new Downloader\Curl($this->composer, $this->io);
-        }
-
-        if ($this->cmdExists('wget')) {
-            if ($this->cmdExists('parallel')) {
-                return new Downloader\ParallelWget($this->composer, $this->io);
-            }
-            return new Downloader\Wget($this->composer, $this->io);
-        }
-*/
-        return false;
-    }
-
-    /**
-     * Check, if a command exists on the environment.
-     *
-     * @param string $command The command to look for.
-     * @return bool True, if the command has been found. False, otherwise.
-     */
-    public function cmdExists($command)
-    {
-        $binary = (PHP_OS === 'WINNT') ? $command . '.exe' : $command;
-
-        // check, if file exists in the "bin-dir"
-        $binDir = $this->config->get('bin-dir') . DIRECTORY_SEPARATOR;
-        $file = $binDir . $binary;
-        //$file = (PHP_OS === 'WINNT') ? str_replace('/', '\\', $file) : $file;
-        if(file_exists($file)) {
-            $this->binDir = $binDir;
-            return true;
-        }
-
-        // check, if the file can be detected on the ENV using "where" or "which"
-        $find = (PHP_OS === 'WINNT') ? 'where' : 'which';
-        $cmd = sprintf('%s %s', escapeshellarg($find), escapeshellarg($command));
-        $process = new ProcessExecutor($this->io);
-        return ($process->execute($cmd) === 0);
     }
 
     public function removeLogfile()

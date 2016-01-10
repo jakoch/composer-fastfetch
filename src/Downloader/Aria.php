@@ -12,6 +12,7 @@
 namespace Composer\Plugin\FastFetch\Downloader;
 
 use Composer\IO\IOInterface;
+use Composer\Composer;
 
 /**
  * A wrapper class for the download tool "aria2".
@@ -97,7 +98,7 @@ class Aria
 
     public function getUserAgent()
     {
-        $composerVersion = ($this->composer::VERSION === '@package_version@') ? 'source' : $this->composer::VERSION;
+        $composerVersion = (Composer::VERSION === '@package_version@') ? 'source' : Composer::VERSION;
 
         $phpVersion = (defined('HHVM_VERSION'))
             ? 'HHVM ' . HHVM_VERSION
