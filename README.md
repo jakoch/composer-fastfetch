@@ -57,7 +57,7 @@ This is a rough overview of the execution flow:
    - You execute `composer install --prefer-dist`
    - Composer hopefully resolves your dependencies into a stable set.
    - This stable set contains the dist URLs for all the packages.
--** Composer Download Step**
+- ** Composer Download Step**
    - Composer starts downloading the packages.
    - The first downloaded package is the plugin "composer-fastfetch".
    - The plugin is auto-started after its download.
