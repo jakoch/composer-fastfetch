@@ -33,7 +33,7 @@ The Composer Plugin FastFetch downloads packages fast and in parallel into your 
 
    - Use `--prefer-dist` when executing Composer, e.g. `php composer.phar install --prefer-dist`.
 
-#### How does this work internally?
+#### How does this work?
 
 FastFetch is a Composer Plugin for downloading packages fast and in parallel into your cache.
 
