@@ -79,8 +79,8 @@ class Aria
     public function getCommand()
     {
         $cmd = 'aria2c -i%s -s4 -j4 -x2 -t10';
-        $cmd .= ' --conditional-get=true --auto-file-renaming=false';
-        $cmd .= ' --allow-overwrite=true --http-accept-gzip=true';
+        //$cmd .= ' --conditional-get=true --auto-file-renaming=false';
+        //$cmd .= ' --allow-overwrite=true --http-accept-gzip=true';
         $cmd .= ' --enable-color=true';
         $cmd .= ' --check-certificate=false'; // rant!
         //$cmd .= ' --user-agent="' . $this->getUserAgent() . '"';
