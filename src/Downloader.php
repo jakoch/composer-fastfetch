@@ -220,7 +220,7 @@ class Downloader
      * @param PackageInterface $p
      * @return type
      */
-    public function getCacheKey(\Package\PackageInterface $p)
+    public function getCacheKey($p)
     {
         $distRef = $p->getDistReference();
 
