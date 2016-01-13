@@ -78,10 +78,11 @@ class Aria
      */
     public function getCommand()
     {
-        $cmd = 'aria2c --input-file=%s -s4 -j4 -x2 -t10'
+        $cmd = 'aria2c'
              . ' --conditional-get=true --auto-file-renaming=false'
              . ' --allow-overwrite=true --http-accept-gzip=true'
-             . ' --enable-color=true --check-certificate=false'; // rant!
+             . ' --enable-color=true --check-certificate=false'
+             . ' --input-file=%s -s4 -j4 -x2 -t10'; // rant!
         //   . ' --user-agent="' . $this->getUserAgent() . '"';
 
         //if($this->io->isDebug()) {
